@@ -1,6 +1,6 @@
 """
 OS Semaphore Visualizer — Streamlit Cloud compatible
-Step-by-step state machine. No background threads.
+Step-by-step state machine. Manual step + auto-run with speed control.
 """
 import streamlit as st
 import random
@@ -29,6 +29,23 @@ h1,h2,h3 { color: #e6edf3; }
 .stButton > button:hover { background: #30363d !important; border-color: #58a6ff !important; color: #58a6ff !important; }
 .stProgress > div > div > div { background: #1f6feb !important; border-radius: 4px !important; }
 hr { border-color: #21262d; margin: 0.5rem 0; }
+
+/* ── Step explanation box ── */
+.step-box {
+  background: #0d1f38; border: 1px solid #1f6feb; border-radius: 10px;
+  padding: 14px 18px; margin-bottom: 14px;
+}
+.step-box-num {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.68rem;
+  color: #58a6ff; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px;
+}
+.step-box-msg {
+  font-size: 0.92rem; color: #e6edf3; line-height: 1.55;
+}
+.step-box-msg .hi-p  { color: #f0883e; font-weight: 700; }
+.step-box-msg .hi-v  { color: #3fb950; font-weight: 700; }
+.step-box-msg .hi-t  { color: #58a6ff; font-weight: 700; }
+.step-box-msg .hi-w  { color: #d2a8ff; font-weight: 700; }
 
 /* ── Variables bar ── */
 .vars-bar {
@@ -61,6 +78,7 @@ hr { border-color: #21262d; margin: 0.5rem 0; }
 .var-chip.blue   { border-color: #1f6feb; }
 .var-chip.blue   .var-chip-val { color: #58a6ff; }
 .var-chip.blue   .var-chip-status { color: #58a6ff; }
+.var-chip.flash  { border-color: #d29922 !important; box-shadow: 0 0 8px #d2992240; }
 
 /* ── Thread lane ── */
 .lanes-wrap { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
@@ -71,7 +89,7 @@ hr { border-color: #21262d; margin: 0.5rem 0; }
   overflow: hidden; height: 48px;
 }
 .lane.lane-running  { border-color: #1f6feb; background: #0d1f38; }
-.lane.lane-waiting  { border-color: #6e40c9; background: #1a0f2e; }
+.lane.lane-waiting  { border-color: #b62324; background: #2a0f0f; }
 .lane.lane-idle     { border-color: #21262d; background: #161b22; }
 
 .lane-id {
@@ -80,10 +98,9 @@ hr { border-color: #21262d; margin: 0.5rem 0; }
   height: 100%; display: flex; align-items: center; justify-content: center;
 }
 .lane-running  .lane-id { color: #58a6ff; border-color: #1f6feb; }
-.lane-waiting  .lane-id { color: #d2a8ff; border-color: #6e40c9; }
+.lane-waiting  .lane-id { color: #f85149; border-color: #b62324; }
 .lane-idle     .lane-id { color: #8b949e; }
 
-/* Phase pipeline inside lane */
 .lane-phases {
   display: flex; align-items: center; gap: 0; padding: 0 10px;
   overflow-x: auto; scrollbar-width: none; height: 100%;
@@ -98,8 +115,9 @@ hr { border-color: #21262d; margin: 0.5rem 0; }
   padding: 3px 8px; border-radius: 4px; border: 1px solid #30363d;
   color: #484f58; background: #0d1117;
 }
-.phase-bubble.active-p { background: #1f3a5c; border-color: #1f6feb; color: #58a6ff; font-weight: 700; }
+.phase-bubble.active-p { background: #2d1f00; border-color: #d29922; color: #f0883e; font-weight: 700; }
 .phase-bubble.active-v { background: #1a3a1f; border-color: #238636; color: #3fb950; font-weight: 700; }
+.phase-bubble.active-w { background: #1a1f3a; border-color: #6e40c9; color: #d2a8ff; font-weight: 700; }
 .phase-bubble.done     { background: #161b22; border-color: #21262d; color: #30363d; text-decoration: line-through; }
 .phase-arrow { color: #30363d; margin: 0 2px; font-size: 0.6rem; }
 .phase-arrow.active { color: #58a6ff; }
@@ -111,11 +129,11 @@ hr { border-color: #21262d; margin: 0.5rem 0; }
   gap: 1px; letter-spacing: 0.06em;
 }
 .lane-running  .lane-badge { color: #58a6ff; border-color: #1f6feb; }
-.lane-waiting  .lane-badge { color: #d2a8ff; border-color: #6e40c9; }
+.lane-waiting  .lane-badge { color: #f85149; border-color: #b62324; }
 .lane-idle     .lane-badge { color: #484f58; }
 .badge-dot { width: 7px; height: 7px; border-radius: 50%; }
 .dot-running { background: #1f6feb; box-shadow: 0 0 6px #1f6feb; }
-.dot-waiting { background: #6e40c9; box-shadow: 0 0 6px #6e40c9; }
+.dot-waiting { background: #f85149; box-shadow: 0 0 6px #f85149; }
 .dot-idle    { background: #30363d; }
 
 /* ── Buffer ── */
@@ -136,8 +154,9 @@ hr { border-color: #21262d; margin: 0.5rem 0; }
 }
 .cl { display: block; padding: 1px 6px; border-left: 3px solid transparent;
       white-space: pre; border-radius: 2px; transition: background 0.15s; }
-.cl-p { background: rgba(31,111,235,0.18); border-left-color: #1f6feb; }
+.cl-p { background: rgba(240,136,62,0.18); border-left-color: #d29922; }
 .cl-v { background: rgba(35,134,54,0.18);  border-left-color: #238636; }
+.cl-w { background: rgba(110,64,201,0.18); border-left-color: #6e40c9; }
 .ck  { color: #ff7b72; font-weight: 700; }
 .cf  { color: #d2a8ff; }
 .cc  { color: #6e7681; font-style: italic; }
@@ -151,6 +170,7 @@ hr { border-color: #21262d; margin: 0.5rem 0; }
   padding: 8px 12px; height: 200px; overflow-y: auto; font-family: 'JetBrains Mono', monospace;
 }
 .log-line { font-size: 0.7rem; color: #8b949e; padding: 1px 0; border-bottom: 1px solid #0d1117; }
+.log-line.log-new { color: #e6edf3; }
 .lp  { color: #f0883e; font-weight: 700; }
 .lv  { color: #3fb950; font-weight: 700; }
 .lt  { color: #58a6ff; }
@@ -190,7 +210,7 @@ def _def(k, v):
     if k not in st.session_state:
         st.session_state[k] = v
 
-_def("running",      False)
+_def("running",      False)   # auto-run mode
 _def("scenario",     SCENARIOS[0])
 _def("threads",      [])
 _def("sems",         {})
@@ -201,38 +221,13 @@ _def("p_calls",      0)
 _def("v_calls",      0)
 _def("mutex_owner",  None)
 _def("step",         0)
-_def("speed",        2)
+_def("auto_delay",   0.6)     # seconds between auto steps
+_def("flash_sems",   set())   # semaphores changed in last step
+_def("step_msg",     "Press <b>▶ Step</b> or <b>▶▶ Auto</b> to begin.")
+_def("initialized",  False)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Semaphore helpers (synchronous — runs in main thread)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def add_log(msg):
-    ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-    st.session_state.log.appendleft(
-        f'<span class="lts">[{ts}]</span> {msg}'
-    )
-
-def sem_P(name, tid):
-    if st.session_state.sems.get(name, 0) > 0:
-        st.session_state.sems[name] -= 1
-        add_log(f'<span class="lp">P({name})</span> ← <span class="lt">{tid}</span>'
-                f'  <span class="lts">→ {name}={st.session_state.sems[name]}</span>')
-        st.session_state.p_calls += 1
-        return True
-    return False
-
-def sem_V(name, tid):
-    st.session_state.sems[name] = st.session_state.sems.get(name, 0) + 1
-    add_log(f'<span class="lv">V({name})</span> ← <span class="lt">{tid}</span>'
-            f'  <span class="lts">→ {name}={st.session_state.sems[name]}</span>')
-    st.session_state.v_calls += 1
-
-def rt(lo, hi, spd):
-    return max(1, random.randint(lo, hi) // spd)
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Phase definitions per role
+# Phase / role definitions
 # ─────────────────────────────────────────────────────────────────────────────
 
 ROLE_PHASES = {
@@ -241,35 +236,60 @@ ROLE_PHASES = {
     "consumer": ["sleep", "P(full)",  "P(mutex)", "remove",  "V(mutex)", "V(empty)"],
     "worker":   ["sleep", "P(resource)", "use",   "V(resource)"],
 }
-
-# Map phase name → highlight type ('p' or 'v' or '')
 PHASE_HL = {
     "P(mutex)": "p", "P(empty)": "p", "P(full)": "p", "P(resource)": "p",
-    "critical": "p", "insert": "p", "remove": "p", "use": "p",
+    "critical": "w", "insert": "w", "remove": "w", "use": "w",
     "V(mutex)": "v", "V(full)": "v", "V(empty)": "v", "V(resource)": "v",
 }
-
-# Map phase → code line key
 PHASE_LINE = {
-    "P(mutex)":    "p_mutex",
-    "P(empty)":    "p_empty",
-    "P(full)":     "p_full",
-    "P(resource)": "p_res",
-    "critical":    "crit",
-    "insert":      "insert",
-    "remove":      "remove",
-    "use":         "use",
-    "V(mutex)":    "v_mutex",
-    "V(full)":     "v_full",
-    "V(empty)":    "v_empty",
-    "V(resource)": "v_res",
+    "P(mutex)": "p_mutex", "P(empty)": "p_empty", "P(full)": "p_full",
+    "P(resource)": "p_res", "critical": "crit", "insert": "insert",
+    "remove": "remove", "use": "use", "V(mutex)": "v_mutex",
+    "V(full)": "v_full", "V(empty)": "v_empty", "V(resource)": "v_res",
 }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def add_log(msg, new=False):
+    ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+    cls = "log-new" if new else ""
+    st.session_state.log.appendleft(
+        (f'<span class="lts">[{ts}]</span> {msg}', cls)
+    )
+
+def sem_P(name, tid):
+    if st.session_state.sems.get(name, 0) > 0:
+        st.session_state.sems[name] -= 1
+        add_log(
+            f'<span class="lp">P({name})</span> ← <span class="lt">{tid}</span>'
+            f'  <span class="lts">→ {name}={st.session_state.sems[name]}</span>',
+            new=True,
+        )
+        st.session_state.p_calls += 1
+        st.session_state.flash_sems.add(name)
+        return True
+    return False
+
+def sem_V(name, tid):
+    st.session_state.sems[name] = st.session_state.sems.get(name, 0) + 1
+    add_log(
+        f'<span class="lv">V({name})</span> ← <span class="lt">{tid}</span>'
+        f'  <span class="lts">→ {name}={st.session_state.sems[name]}</span>',
+        new=True,
+    )
+    st.session_state.v_calls += 1
+    st.session_state.flash_sems.add(name)
+
+def rt(lo, hi):
+    return random.randint(lo, hi)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Init simulation
 # ─────────────────────────────────────────────────────────────────────────────
 
-def init_sim(scenario, n_threads, n_prod, n_cons, buf_size, max_conc, speed):
+def init_sim(scenario, n_threads, n_prod, n_cons, buf_size, max_conc):
     st.session_state.threads      = []
     st.session_state.sems         = {}
     st.session_state.buffer       = []
@@ -279,20 +299,22 @@ def init_sim(scenario, n_threads, n_prod, n_cons, buf_size, max_conc, speed):
     st.session_state.v_calls      = 0
     st.session_state.mutex_owner  = None
     st.session_state.step         = 0
-    st.session_state.speed        = speed
+    st.session_state.flash_sems   = set()
+    st.session_state.step_msg     = "Simulation ready. Press <b>▶ Step</b> to advance one event."
+    st.session_state.initialized  = True
 
     def make(tid, role):
         phases = ROLE_PHASES[role]
         return {
             "id":          tid,
             "role":        role,
-            "phase_idx":   0,          # index into ROLE_PHASES[role]
-            "phase":       phases[0],  # "sleep"
+            "phase_idx":   0,
+            "phase":       phases[0],
             "state":       "idle",
-            "sleep_ticks": random.randint(2, 8),
+            "sleep_ticks": random.randint(2, 5),
             "work_ticks":  0,
             "item":        None,
-            "phase_done":  set(),      # indices already completed (for rendering)
+            "phase_done":  set(),
         }
 
     if scenario == "Mutex (Critical Section)":
@@ -313,134 +335,197 @@ def init_sim(scenario, n_threads, n_prod, n_cons, buf_size, max_conc, speed):
             st.session_state.threads.append(make(f"W{i}", "worker"))
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Tick — advance each thread one step
+# Single tick — one thread advances ONE phase
 # ─────────────────────────────────────────────────────────────────────────────
 
-def tick():
-    spd = st.session_state.speed
-    for t in st.session_state.threads:
-        role  = t["role"]
-        phase = t["phase"]
-        tid   = t["id"]
-        phases = ROLE_PHASES[role]
+def tick_once():
+    """Advance exactly one thread by one phase. Returns a human-readable explanation."""
+    st.session_state.flash_sems = set()
+    threads = st.session_state.threads
+    if not threads:
+        return "No threads."
 
-        def next_phase():
-            t["phase_done"].add(t["phase_idx"])
-            t["phase_idx"] = (t["phase_idx"] + 1) % len(phases)
-            t["phase"]     = phases[t["phase_idx"]]
-            if t["phase_idx"] == 0:   # wrapped back to sleep
-                t["phase_done"] = set()
+    # prefer non-idle threads first, then pick randomly
+    candidates = [t for t in threads if t["state"] != "idle"] or threads
+    t = random.choice(candidates)
 
-        # ── sleep ────────────────────────────────────────────────────────
-        if phase == "sleep":
-            t["state"] = "idle"
-            if t["sleep_ticks"] > 0:
-                t["sleep_ticks"] -= 1
-            else:
-                next_phase()
-                if role == "producer":
-                    t["item"] = random.randint(10, 99)
-                elif role in ("mutex", "worker"):
-                    add_log(f'<span class="lt">{tid}</span> <span class="lts">→ requesting...</span>')
+    role   = t["role"]
+    phase  = t["phase"]
+    tid    = t["id"]
+    phases = ROLE_PHASES[role]
+    msg    = ""
 
-        # ── P operations (try to acquire) ────────────────────────────────
-        elif phase.startswith("P("):
-            sem_name = phase[2:-1]
-            t["state"] = "running"
-            if sem_P(sem_name, tid):
-                if sem_name == "mutex":
-                    st.session_state.mutex_owner = tid
-                t["state"] = "running"
-                next_phase()
-            else:
-                t["state"] = "waiting"
+    def next_phase():
+        t["phase_done"].add(t["phase_idx"])
+        t["phase_idx"] = (t["phase_idx"] + 1) % len(phases)
+        t["phase"]     = phases[t["phase_idx"]]
+        if t["phase_idx"] == 0:
+            t["phase_done"] = set()
 
-        # ── V operations ─────────────────────────────────────────────────
-        elif phase.startswith("V("):
-            sem_name = phase[2:-1]
-            t["state"] = "running"
-            sem_V(sem_name, tid)
-            if sem_name == "mutex" and st.session_state.mutex_owner == tid:
-                st.session_state.mutex_owner = None
+    # ── sleep ────────────────────────────────────────────────────────────────
+    if phase == "sleep":
+        t["state"] = "idle"
+        if t["sleep_ticks"] > 0:
+            t["sleep_ticks"] -= 1
+            msg = (f'<span class="hi-t">{tid}</span> is <b>sleeping</b> '
+                   f'({t["sleep_ticks"]} ticks remaining before it tries to enter)')
+        else:
             next_phase()
-            if t["phase"] == "sleep":
-                t["sleep_ticks"] = rt(3, 9, spd)
-                t["state"] = "idle"
-
-        # ── critical section / use (timed work) ──────────────────────────
-        elif phase in ("critical", "use"):
             t["state"] = "running"
-            if t["work_ticks"] == 0:
-                t["work_ticks"] = rt(3, 8, spd)
-                add_log(f'<span class="lt">{tid}</span> <span class="lts">🔐 in {phase}</span>')
+            if t["role"] == "producer":
+                t["item"] = random.randint(10, 99)
+                msg = (f'<span class="hi-t">{tid}</span> woke up and produced item '
+                       f'<b>{t["item"]}</b> → now attempting <span class="hi-p">{t["phase"]}</span>')
             else:
-                t["work_ticks"] -= 1
-                if t["work_ticks"] == 0:
-                    next_phase()
+                msg = (f'<span class="hi-t">{tid}</span> woke up → '
+                       f'now attempting <span class="hi-p">{t["phase"]}</span>')
 
-        # ── insert ───────────────────────────────────────────────────────
-        elif phase == "insert":
+    # ── P operations ─────────────────────────────────────────────────────────
+    elif phase.startswith("P("):
+        sem_name = phase[2:-1]
+        val_before = st.session_state.sems.get(sem_name, 0)
+        if sem_P(sem_name, tid):
+            if sem_name == "mutex":
+                st.session_state.mutex_owner = tid
             t["state"] = "running"
-            buf = st.session_state.buffer
-            if len(buf) < st.session_state.buf_size:
-                buf.append(t["item"])
-            add_log(f'<span class="lt">{tid}</span> produced <b>{t["item"]}</b>'
-                    f'  <span class="lts">buf={len(buf)}</span>')
             next_phase()
+            val_after = st.session_state.sems[sem_name]
+            msg = (f'<span class="hi-t">{tid}</span> called '
+                   f'<span class="hi-p">P({sem_name})</span> — '
+                   f'<b>{sem_name} was {val_before} &gt; 0</b>, so it decremented to {val_after} '
+                   f'and proceeds to <b>{t["phase"]}</b>')
+        else:
+            t["state"] = "waiting"
+            msg = (f'<span class="hi-t">{tid}</span> called '
+                   f'<span class="hi-p">P({sem_name})</span> — '
+                   f'<b>{sem_name} = 0 (blocked!)</b> Thread must wait until another thread calls '
+                   f'<span class="hi-v">V({sem_name})</span>')
 
-        # ── remove ───────────────────────────────────────────────────────
-        elif phase == "remove":
-            t["state"] = "running"
-            buf  = st.session_state.buffer
-            item = buf.pop(0) if buf else "?"
-            add_log(f'<span class="lc">{tid}</span> consumed <b>{item}</b>'
-                    f'  <span class="lts">buf={len(buf)}</span>')
+    # ── V operations ─────────────────────────────────────────────────────────
+    elif phase.startswith("V("):
+        sem_name = phase[2:-1]
+        sem_V(sem_name, tid)
+        if sem_name == "mutex" and st.session_state.mutex_owner == tid:
+            st.session_state.mutex_owner = None
+        next_phase()
+        val_after = st.session_state.sems[sem_name]
+        t["state"] = "idle" if t["phase"] == "sleep" else "running"
+        if t["phase"] == "sleep":
+            t["sleep_ticks"] = rt(3, 6)
+        # try to unblock a waiting thread
+        unblocked = []
+        for other in threads:
+            if other is t or other["state"] != "waiting":
+                continue
+            bph = other["phase"]
+            if bph.startswith("P(") and bph[2:-1] == sem_name:
+                if st.session_state.sems.get(sem_name, 0) > 0:
+                    st.session_state.sems[sem_name] -= 1
+                    other["phase_done"].add(other["phase_idx"])
+                    other["phase_idx"] = (other["phase_idx"] + 1) % len(ROLE_PHASES[other["role"]])
+                    other["phase"]     = ROLE_PHASES[other["role"]][other["phase_idx"]]
+                    other["state"]     = "running"
+                    if sem_name == "mutex":
+                        st.session_state.mutex_owner = other["id"]
+                    unblocked.append(other["id"])
+                    add_log(
+                        f'<span class="lt">{other["id"]}</span> unblocked by '
+                        f'<span class="lv">V({sem_name})</span>', new=True
+                    )
+                    st.session_state.flash_sems.add(sem_name)
+        unblock_note = ""
+        if unblocked:
+            unblock_note = f' → <span class="hi-w">unblocked {", ".join(unblocked)}</span>'
+        msg = (f'<span class="hi-t">{tid}</span> called '
+               f'<span class="hi-v">V({sem_name})</span> — '
+               f'incremented to <b>{val_after}</b>{unblock_note}')
+
+    # ── critical / use (timed work) ──────────────────────────────────────────
+    elif phase in ("critical", "use"):
+        t["state"] = "running"
+        if t["work_ticks"] == 0:
+            t["work_ticks"] = rt(2, 4)
+            add_log(f'<span class="lt">{tid}</span> entered <span class="lc">{phase}</span>', new=True)
+        t["work_ticks"] -= 1
+        if t["work_ticks"] == 0:
             next_phase()
-            t["sleep_ticks"] = rt(4, 10, spd)
+            msg = (f'<span class="hi-t">{tid}</span> finished <span class="hi-w">{phase}</span> '
+                   f'→ now moves to <span class="hi-v">{t["phase"]}</span>')
+        else:
+            msg = (f'<span class="hi-t">{tid}</span> is inside <span class="hi-w">{phase}</span> '
+                   f'({t["work_ticks"]} tick{"s" if t["work_ticks"]!=1 else ""} of work remaining)')
+
+    # ── insert ───────────────────────────────────────────────────────────────
+    elif phase == "insert":
+        t["state"] = "running"
+        buf = st.session_state.buffer
+        if len(buf) < st.session_state.buf_size:
+            buf.append(t["item"])
+        add_log(
+            f'<span class="lt">{tid}</span> inserted <b>{t["item"]}</b>'
+            f'  <span class="lts">buf=[{", ".join(str(x) for x in buf)}]</span>', new=True
+        )
+        msg = (f'<span class="hi-t">{tid}</span> <b>inserted {t["item"]}</b> into the buffer '
+               f'(now {len(buf)}/{st.session_state.buf_size} full)')
+        next_phase()
+
+    # ── remove ───────────────────────────────────────────────────────────────
+    elif phase == "remove":
+        t["state"] = "running"
+        buf  = st.session_state.buffer
+        item = buf.pop(0) if buf else "?"
+        add_log(
+            f'<span class="lc">{tid}</span> removed <b>{item}</b>'
+            f'  <span class="lts">buf=[{", ".join(str(x) for x in buf)}]</span>', new=True
+        )
+        msg = (f'<span class="hi-t">{tid}</span> <b>removed {item}</b> from the buffer '
+               f'(now {len(buf)}/{st.session_state.buf_size} full)')
+        next_phase()
+        t["sleep_ticks"] = rt(3, 6)
 
     st.session_state.step += 1
+    return msg or "…"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Render helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
+def render_step_box():
+    msg  = st.session_state.step_msg
+    step = st.session_state.step
+    label = f"Step {step}" if step > 0 else "Ready"
+    return (f'<div class="step-box">'
+            f'<div class="step-box-num">{label}</div>'
+            f'<div class="step-box-msg">{msg}</div>'
+            f'</div>')
+
 def render_vars_bar():
-    sems = st.session_state.sems
+    sems  = st.session_state.sems
+    flash = st.session_state.flash_sems
     if not sems:
         return ""
-
     html = '<div class="vars-bar">'
     html += '<span style="font-size:0.7rem;font-weight:700;color:#8b949e;letter-spacing:0.08em;text-transform:uppercase">Variables</span>'
-
     for name, val in sems.items():
         if val <= 0:   color, status = "red",   "BLOCKED"
         elif val == 1: color, status = "green",  "FREE"
         else:          color, status = "blue",   f"{val} FREE"
-        html += (f'<div class="var-chip {color}">'
+        fl = " flash" if name in flash else ""
+        html += (f'<div class="var-chip {color}{fl}">'
                  f'<div class="var-chip-name">{name}</div>'
                  f'<div class="var-chip-val">{val}</div>'
                  f'<div class="var-chip-status">{"🔴" if val<=0 else "🟢"} {status}</div>'
                  f'</div>')
-
-    # buffer fill if prod-cons
     buf = st.session_state.buffer
     bsz = st.session_state.buf_size
     if bsz > 0 and st.session_state.threads and st.session_state.threads[0]["role"] in ("producer","consumer"):
         pct = int(len(buf)/bsz*100)
-        color = "amber" if pct > 0 else "red" if pct == 100 else "blue"
+        color = "amber" if 0 < pct < 100 else ("red" if pct == 0 else "blue")
         html += (f'<div class="var-chip {color}">'
                  f'<div class="var-chip-name">buffer</div>'
                  f'<div class="var-chip-val">{len(buf)}/{bsz}</div>'
                  f'<div class="var-chip-status">{"▓"*min(5,int(pct/20))}{"░"*(5-min(5,int(pct/20)))} {pct}%</div>'
                  f'</div>')
-
-    # step counter
-    html += (f'<div class="var-chip" style="margin-left:auto">'
-             f'<div class="var-chip-name">step</div>'
-             f'<div class="var-chip-val" style="color:#8b949e">{st.session_state.step}</div>'
-             f'<div class="var-chip-status" style="color:#30363d">ticks</div>'
-             f'</div>')
-
     html += '</div>'
     return html
 
@@ -449,7 +534,6 @@ def render_thread_lanes():
     threads = st.session_state.threads
     if not threads:
         return '<div style="color:#484f58;font-size:.85rem;padding:12px">No threads — press Start.</div>'
-
     html = '<div class="lanes-wrap">'
     for t in sorted(threads, key=lambda x: x["id"]):
         tid    = t["id"]
@@ -458,41 +542,32 @@ def render_thread_lanes():
         phases = ROLE_PHASES[role]
         cur_ph = t["phase"]
         done   = t["phase_done"]
-
         lane_cls = {"running": "lane-running", "waiting": "lane-waiting"}.get(state, "lane-idle")
         dot_cls  = {"running": "dot-running",  "waiting": "dot-waiting"}.get(state,  "dot-idle")
-
-        # owner marker
         owner_icon = " 🔐" if tid == st.session_state.mutex_owner else ""
-
-        # Phase pipeline
         phases_html = ""
         for i, ph in enumerate(phases):
             is_cur  = ph == cur_ph
             is_done = i in done
             hl      = PHASE_HL.get(ph, "")
-
             if is_done:
                 bub_cls = "phase-bubble done"
             elif is_cur and hl == "p":
                 bub_cls = "phase-bubble active-p"
             elif is_cur and hl == "v":
                 bub_cls = "phase-bubble active-v"
+            elif is_cur and hl == "w":
+                bub_cls = "phase-bubble active-w"
             elif is_cur:
-                bub_cls = "phase-bubble active-p"
+                bub_cls = "phase-bubble active-w"
             else:
                 bub_cls = "phase-bubble"
-
             arrow_cls = "phase-arrow active" if i < len(phases)-1 and phases[i+1] == cur_ph else "phase-arrow"
             phases_html += f'<span class="phase-step"><span class="{bub_cls}">{ph}</span>'
             if i < len(phases) - 1:
                 phases_html += f'<span class="{arrow_cls}">›</span>'
             phases_html += '</span>'
-
-        state_label = state.upper()
-        if state == "waiting":
-            state_label = "BLOCKED"
-
+        state_label = "BLOCKED" if state == "waiting" else state.upper()
         html += (f'<div class="lane {lane_cls}">'
                  f'<div class="lane-id">{tid}{owner_icon}</div>'
                  f'<div class="lane-phases">{phases_html}</div>'
@@ -500,7 +575,6 @@ def render_thread_lanes():
                  f'<div class="badge-dot {dot_cls}"></div>'
                  f'{state_label}</div>'
                  f'</div>')
-
     html += '</div>'
     return html
 
@@ -521,10 +595,10 @@ def render_buffer():
 def render_log():
     entries = list(st.session_state.log)[:35]
     html = '<div class="log-wrap">'
-    for e in entries:
-        html += f'<div class="log-line">{e}</div>'
+    for text, cls in entries:
+        html += f'<div class="log-line {cls}">{text}</div>'
     if not entries:
-        html += '<div class="log-line" style="color:#21262d">No events yet — press Start.</div>'
+        html += '<div class="log-line" style="color:#21262d">No events yet.</div>'
     html += '</div>'
     return html
 
@@ -547,7 +621,7 @@ def render_code(scenario, active_keys):
 
     def L(key, code, ht=""):
         matched = key and key in active_keys
-        cls = ("cl-p" if ht == "p" else "cl-v") if matched else ""
+        cls = (f"cl-{ht}") if matched else ""
         return f'<span class="cl {cls}"> {code}</span>\n'
 
     html = '<div class="code-block">'
@@ -557,9 +631,9 @@ def render_code(scenario, active_keys):
         html += L("",       "")
         html += L("",       f'{kw("def")} {fn("thread")}(id):')
         html += L("",       f'    {cm("non-critical work...")}')
-        html += L("p_mutex",f'    {cv("P(mutex)")}  {cm("wait · decrement")}', "p")
-        html += L("crit",   f'    critical_section()  {cm("🔐 exclusive")}', "p")
-        html += L("v_mutex",f'    {cv("V(mutex)")}  {cm("signal · increment")}', "v")
+        html += L("p_mutex",f'    {cv("P(mutex)")}  {cm("wait — decrement")}', "p")
+        html += L("crit",   f'    critical_section()  {cm("🔐 exclusive zone")}', "w")
+        html += L("v_mutex",f'    {cv("V(mutex)")}  {cm("signal — increment")}', "v")
         html += L("",       "")
         html += L("",       f'{kw("def")} {fn("P")}(sem):')
         html += L("",       f'    {kw("while")} sem.value ≤ {nu("0")}: block()')
@@ -578,14 +652,14 @@ def render_code(scenario, active_keys):
         html += L("",       f'    item = produce()')
         html += L("p_empty",f'    {cv("P(empty)")}  {cm("wait: free slot?")}', "p")
         html += L("p_mutex",f'    {cv("P(mutex)")}  {cm("lock buffer")}', "p")
-        html += L("insert", f'    buffer.append(item)', "p")
+        html += L("insert", f'    buffer.append(item)', "w")
         html += L("v_mutex",f'    {cv("V(mutex)")}  {cm("unlock")}', "v")
         html += L("v_full", f'    {cv("V(full)")}   {cm("signal: new item")}', "v")
         html += L("",       "")
         html += L("",       f'{kw("def")} {fn("consumer")}():')
         html += L("p_full", f'    {cv("P(full)")}   {cm("wait: item exists?")}', "p")
         html += L("p_mutex",f'    {cv("P(mutex)")}  {cm("lock buffer")}', "p")
-        html += L("remove", f'    item = buffer.pop(0)', "p")
+        html += L("remove", f'    item = buffer.pop(0)', "w")
         html += L("v_mutex",f'    {cv("V(mutex)")}  {cm("unlock")}', "v")
         html += L("v_empty",f'    {cv("V(empty)")}  {cm("signal: slot free")}', "v")
         html += L("",       f'    consume(item)')
@@ -596,7 +670,7 @@ def render_code(scenario, active_keys):
         html += L("",      f'{kw("def")} {fn("worker")}(id):')
         html += L("",      f'    {cm("prepare...")}')
         html += L("p_res", f'    {cv("P(resource)")}  {cm("wait: slot free?")}', "p")
-        html += L("use",   f'    use_resource()       {cm("concurrent zone")}', "p")
+        html += L("use",   f'    use_resource()       {cm("concurrent zone")}', "w")
         html += L("v_res", f'    {cv("V(resource)")}  {cm("release slot")}', "v")
         html += L("",      f'    {cm("continue...")}')
 
@@ -633,19 +707,20 @@ with st.sidebar:
         n_prod = n_cons = buf_size = 0
 
     st.markdown("---")
-    speed = st.slider("⚡ Speed", 1, 6, 2,
-                      help="Steps executed per tick. 1 = slowest, 6 = fastest.")
-    if st.session_state.running:
-        st.session_state.speed = speed
+    auto_delay = st.slider(
+        "⏱ Auto-run delay (sec)", 0.2, 3.0, 0.8, step=0.1,
+        help="Time between steps in auto-run mode"
+    )
+    st.session_state.auto_delay = auto_delay
 
     st.markdown("---")
     st.markdown("**P(sem)** — wait / decrement  \n`while sem≤0: block()`  \n`sem -= 1`")
     st.markdown("**V(sem)** — signal / increment  \n`sem += 1`  \n`wakeup_next()`")
     st.markdown("---")
     st.markdown("""
-<div style="font-size:.75rem;line-height:2">
-<span style="background:#0d2f5c;border:1px solid #1f6feb;color:#58a6ff;padding:2px 8px;border-radius:4px;font-family:monospace">running</span>  executing<br>
-<span style="background:#1a0f2e;border:1px solid #6e40c9;color:#d2a8ff;padding:2px 8px;border-radius:4px;font-family:monospace">blocked</span>  waiting on P()<br>
+<div style="font-size:.75rem;line-height:2.2">
+<span style="background:#0d1f38;border:1px solid #1f6feb;color:#58a6ff;padding:2px 8px;border-radius:4px;font-family:monospace">running</span>  executing<br>
+<span style="background:#2a0f0f;border:1px solid #b62324;color:#f85149;padding:2px 8px;border-radius:4px;font-family:monospace">blocked</span>  waiting on P()<br>
 <span style="background:#161b22;border:1px solid #21262d;color:#8b949e;padding:2px 8px;border-radius:4px;font-family:monospace">idle</span>  sleeping
 </div>
 """, unsafe_allow_html=True)
@@ -660,7 +735,8 @@ st.markdown("""
   <div>
     <div style="font-size:1.35rem;font-weight:700;color:#e6edf3">🔐 OS Semaphore Visualizer</div>
     <div style="font-size:.78rem;color:#8b949e;margin-top:2px">
-      Step-by-step · &nbsp;<span style="color:#ffa657;font-family:monospace;font-weight:700">P(sem)</span>
+      Step-by-step mode &nbsp;·&nbsp;
+      <span style="color:#f0883e;font-family:monospace;font-weight:700">P(sem)</span>
       &nbsp;= wait / decrement &nbsp;·&nbsp;
       <span style="color:#3fb950;font-family:monospace;font-weight:700">V(sem)</span>
       &nbsp;= signal / increment
@@ -670,48 +746,72 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Controls
+# Controls row
 # ─────────────────────────────────────────────────────────────────────────────
 
-c1, c2, c3, c4 = st.columns([1, 1, 1, 5])
+c1, c2, c3, c4, c5 = st.columns([1.2, 1.2, 1.2, 1.2, 4])
+
 with c1:
-    if st.button("▶ Start", disabled=st.session_state.running):
-        init_sim(scenario, n_threads, n_prod, n_cons,
-                 buf_size if buf_size else 5, max_conc, speed)
-        st.session_state.running = True
+    if st.button("▶ Step", help="Advance exactly one event"):
+        if not st.session_state.initialized:
+            init_sim(scenario, n_threads, n_prod, n_cons,
+                     buf_size if buf_size else 5, max_conc)
+        st.session_state.running = False          # stop auto if running
+        msg = tick_once()
+        st.session_state.step_msg = msg
         st.rerun()
+
 with c2:
-    if st.button("⏹ Stop", disabled=not st.session_state.running):
-        st.session_state.running = False
+    auto_label = "⏹ Pause" if st.session_state.running else "▶▶ Auto"
+    if st.button(auto_label):
+        if not st.session_state.initialized:
+            init_sim(scenario, n_threads, n_prod, n_cons,
+                     buf_size if buf_size else 5, max_conc)
+        st.session_state.running = not st.session_state.running
         st.rerun()
+
 with c3:
-    if st.button("↺ Reset"):
-        st.session_state.running = False
-        st.session_state.threads = []
-        st.session_state.sems    = {}
-        st.session_state.buffer  = []
-        st.session_state.log     = deque(maxlen=120)
-        st.session_state.p_calls = 0
-        st.session_state.v_calls = 0
-        st.session_state.step    = 0
+    if st.button("⏮ Reset"):
+        st.session_state.running     = False
+        st.session_state.initialized = False
+        init_sim(scenario, n_threads, n_prod, n_cons,
+                 buf_size if buf_size else 5, max_conc)
+        st.rerun()
+
+with c4:
+    if st.button("↺ New sim"):
+        st.session_state.running     = False
+        st.session_state.initialized = False
+        st.session_state.threads     = []
+        st.session_state.sems        = {}
+        st.session_state.buffer      = []
+        st.session_state.log         = deque(maxlen=120)
+        st.session_state.step        = 0
+        st.session_state.step_msg    = "Press <b>▶ Step</b> or <b>▶▶ Auto</b> to begin."
         st.rerun()
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Advance simulation
+# Auto-run: advance one step then sleep then rerun
 # ─────────────────────────────────────────────────────────────────────────────
 
 if st.session_state.running:
-    for _ in range(max(1, st.session_state.speed)):
-        tick()
+    msg = tick_once()
+    st.session_state.step_msg = msg
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ── Variables bar (full width, top) ──────────────────────────────────────────
+# Step explanation box
+# ─────────────────────────────────────────────────────────────────────────────
+
+st.markdown(render_step_box(), unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Variables bar
 # ─────────────────────────────────────────────────────────────────────────────
 
 st.markdown(render_vars_bar(), unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ── Stats row ────────────────────────────────────────────────────────────────
+# Stats row
 # ─────────────────────────────────────────────────────────────────────────────
 
 waiting_n = sum(1 for t in st.session_state.threads if t["state"] == "waiting")
@@ -720,55 +820,33 @@ idle_n    = sum(1 for t in st.session_state.threads if t["state"] == "idle")
 
 st.markdown(f"""
 <div class="stats-row">
-  <div class="stat-box">
-    <div class="stat-val" style="color:#58a6ff">{running_n}</div>
-    <div class="stat-lbl">running</div>
-  </div>
-  <div class="stat-box">
-    <div class="stat-val" style="color:#d2a8ff">{waiting_n}</div>
-    <div class="stat-lbl">blocked</div>
-  </div>
-  <div class="stat-box">
-    <div class="stat-val" style="color:#8b949e">{idle_n}</div>
-    <div class="stat-lbl">idle</div>
-  </div>
-  <div class="stat-box">
-    <div class="stat-val" style="color:#f0883e">{st.session_state.p_calls}</div>
-    <div class="stat-lbl">P() calls</div>
-  </div>
-  <div class="stat-box">
-    <div class="stat-val" style="color:#3fb950">{st.session_state.v_calls}</div>
-    <div class="stat-lbl">V() calls</div>
-  </div>
-  <div class="stat-box">
-    <div class="stat-val" style="color:#6e7681">{st.session_state.step}</div>
-    <div class="stat-lbl">steps</div>
-  </div>
+  <div class="stat-box"><div class="stat-val" style="color:#58a6ff">{running_n}</div><div class="stat-lbl">running</div></div>
+  <div class="stat-box"><div class="stat-val" style="color:#f85149">{waiting_n}</div><div class="stat-lbl">blocked</div></div>
+  <div class="stat-box"><div class="stat-val" style="color:#8b949e">{idle_n}</div><div class="stat-lbl">idle</div></div>
+  <div class="stat-box"><div class="stat-val" style="color:#f0883e">{st.session_state.p_calls}</div><div class="stat-lbl">P() calls</div></div>
+  <div class="stat-box"><div class="stat-val" style="color:#3fb950">{st.session_state.v_calls}</div><div class="stat-lbl">V() calls</div></div>
+  <div class="stat-box"><div class="stat-val" style="color:#6e7681">{st.session_state.step}</div><div class="stat-lbl">steps</div></div>
 </div>
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ── Main columns ─────────────────────────────────────────────────────────────
+# Main columns — threads + code
 # ─────────────────────────────────────────────────────────────────────────────
 
 left, right = st.columns([3, 2])
 
 with left:
-    # Thread lanes
     st.markdown('<div class="sec-label">Thread execution lanes</div>', unsafe_allow_html=True)
     st.markdown(render_thread_lanes(), unsafe_allow_html=True)
 
-    # Buffer (prod-cons only)
     threads = st.session_state.threads
     if threads and threads[0]["role"] in ("producer", "consumer"):
         st.markdown('<div class="sec-label">Shared buffer</div>', unsafe_allow_html=True)
         st.markdown(render_buffer(), unsafe_allow_html=True)
         buf = st.session_state.buffer
         bsz = st.session_state.buf_size
-        pct = len(buf) / bsz if bsz else 0
-        st.progress(pct)
+        st.progress(len(buf) / bsz if bsz else 0)
 
-    # Log
     st.markdown('<div class="sec-label">Event log</div>', unsafe_allow_html=True)
     st.markdown(render_log(), unsafe_allow_html=True)
 
@@ -781,13 +859,16 @@ with right:
         st.markdown('<div class="sec-label" style="margin-top:14px">Concurrency gauge</div>', unsafe_allow_html=True)
         used = sum(1 for t in st.session_state.threads if t["phase"] == "use")
         st.progress(min(used / max(max_conc, 1), 1.0))
-        st.markdown(f'<span style="font-family:monospace;font-size:.78rem;color:#8b949e">'
-                    f'{used} / {max_conc} slots in use</span>', unsafe_allow_html=True)
+        st.markdown(
+            f'<span style="font-family:monospace;font-size:.78rem;color:#8b949e">'
+            f'{used} / {max_conc} slots in use</span>',
+            unsafe_allow_html=True
+        )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Auto-rerun loop
+# Auto-run rerun loop
 # ─────────────────────────────────────────────────────────────────────────────
 
 if st.session_state.running:
-    time.sleep(0.22)
+    time.sleep(st.session_state.auto_delay)
     st.rerun()
